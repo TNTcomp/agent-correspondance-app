@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Correspondance</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+:root{--rouge:#E40520;--noir:#0E1227;--gris:#F4F4F4;--bord:#E9EBF8}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,Arial,sans-serif;background:#f7f7fb;color:var(--noir);font-size:14px}
+header{background:linear-gradient(98deg,#E40520,#50020B);color:#fff;padding:18px 24px}
+header h1{margin:0;font-size:20px}
+header .sous{font-size:12px;opacity:.85}
+.barre{display:flex;gap:12px;background:#fff;border-bottom:1px solid var(--bord);padding:12px 24px;flex-wrap:wrap;align-items:center}
+.barre label{font-weight:700;font-size:13px}
+#site{flex:1;min-width:220px;padding:10px 14px;border:1px solid var(--bord);border-radius:8px;font-size:14px}
+main{padding:20px 24px;max-width:1400px;margin:0 auto}
+.carte{background:#fff;border:1px solid var(--bord);border-radius:12px;padding:16px;margin-bottom:16px}
+.carte h2{margin:0 0 6px;font-size:16px}
+.aide{color:#666;font-size:12px;margin:0 0 12px}
+.dropzone{border:2px dashed #c9cbe0;border-radius:10px;padding:22px;text-align:center;color:#666;cursor:pointer;background:#fafaff;font-weight:600}
+.dropzone.survol{border-color:var(--rouge);background:#fff5f5}
+.stat{display:inline-block;background:var(--gris);border-radius:8px;padding:10px 16px;margin:4px 8px 4px 0;min-width:110px}
+.stat b{display:block;font-size:20px;color:var(--rouge)}
+.stat span{font-size:11px;color:#666}
+.recherche{width:100%;max-width:420px;padding:10px 14px;border:1px solid var(--bord);border-radius:8px;margin-bottom:12px;font-size:14px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:var(--noir);color:#fff;text-align:left;padding:9px 10px;white-space:nowrap}
+td{border-bottom:1px solid var(--bord);padding:8px 10px}
+tr:hover td{background:#fafaff}
+.conteneur{max-height:480px;overflow:auto;border:1px solid var(--bord);border-radius:10px}
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700}
+.b-ok{background:#d9f4e3;color:#0b7a35}.b-no{background:#fde3e6;color:#b3122a}.b-hifi{background:#e3ecfd;color:#1149a8}.b-vide{background:#eee;color:#777}
+.bouton{background:var(--rouge);color:#fff;border:none;padding:12px 22px;border-radius:8px;cursor:pointer;font-weight:700;font-size:14px}
+.bouton2{background:#fff;color:var(--noir);border:1px solid var(--bord);padding:12px 22px;border-radius:8px;cursor:pointer;font-weight:600;font-size:14px;margin-right:8px}
+.mini{font-size:12px;color:#666;margin-top:8px}
+.etapes{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.etape{background:#fff;border:1px solid var(--bord);border-radius:10px;padding:10px 14px;font-size:12px;font-weight:700;color:#666}
+.etape em{display:block;font-style:normal;color:var(--rouge);font-size:15px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Agent Correspondance</h1>
+  <div class="sous">Import Excel &rarr; correspondances (site choisi) &rarr; export Excel &bull; 100% local</div>
+</header>
+
+<div class="barre">
+  <label>Site de correspondance :</label>
+  <input id="site" placeholder="catalog.hifi-filter.com" oninput="sauverSite()">
+</div>
+
+<main>
+<div class="etapes">
+  <div class="etape"><em>1</em>Importer le fichier Excel des r&eacute;f&eacute;rences</div>
+  <div class="etape"><em>2</em>Charger la base des correspondances (recherche faite par l'agent sur le site)</div>
+  <div class="etape"><em>3</em>Exporter l'Excel final</div>
+</div>
+
+<div class="carte">
+  <h2>IMPORT des r&eacute;f&eacute;rences entrantes</h2>
+  <p class="aide">Excel / Word / PDF non : Excel uniquement (.xlsx, .xls). Colonne 1 = R&eacute;f&eacute;rence, colonne 2 = Quantit&eacute; (optionnelle). Toutes les feuilles sont lues.</p>
+  <div class="dropzone" id="dzSrc" onclick="document.getElementById('fSrc').click()">IMPORTER : cliquez ou d&eacute;posez votre fichier Excel de r&eacute;f&eacute;rences</div>
+  <input type="file" id="fSrc" accept=".xlsx,.xls" hidden>
+  <p class="mini"><span id="nSrc"></span> <button class="bouton2" onclick="SOURCE=[];dessinerSrc();majStats()">Vider</button></p>
+  <input class="recherche" id="rechSrc" placeholder="Rechercher..." oninput="dessinerSrc()">
+  <div class="conteneur"><table id="tSrc"></table></div>
+</div>
+
+<div class="carte">
+  <h2>Base des correspondances (r&eacute;sultats de l'agent)</h2>
+  <p class="aide">L'agent fait la recherche sur le site indiqu&eacute; ci-dessus et vous livre un fichier de correspondances. Chargez-le ici (JSON ou Excel, plusieurs fichiers se cumulent) : le croisement avec vos r&eacute;f&eacute;rences et l'export se font alors en un clic.</p>
+  <div class="dropzone" id="dzBase" onclick="document.getElementById('fBase').click()">IMPORTER LA BASE : cliquez ou d&eacute;posez le fichier de correspondances (JSON ou Excel)</div>
+  <input type="file" id="fBase" accept=".json,.xlsx,.xls" hidden multiple>
+  <p class="mini"><button class="bouton2" onclick="BASE=[];MEMBRE={};dessinerBase();majStats()">Vider la base</button> <span id="nBase"></span></p>
+  <input class="recherche" id="rechBase" placeholder="Rechercher..." oninput="dessinerBase()">
+  <div class="conteneur"><table id="tBase"></table></div>
+</div>
+
+<div class="carte">
+  <h2>EXPORT</h2>
+  <p class="aide">L'Excel de sortie contient les deux colonnes demand&eacute;es : <b>R&eacute;f&eacute;rence entrante</b> et <b>R&eacute;f&eacute;rence correspondante</b>, plus statut, type et quantit&eacute;.</p>
+  <button class="bouton" onclick="exporter(true)">EXPORTER les correspondances trouv&eacute;es</button>
+  <button class="bouton2" onclick="exporter(false)">EXPORTER tout (avec &laquo; &agrave; traiter &raquo;)</button>
+  <button class="bouton2" onclick="exporterRestantes()">EXPORTER la liste restante (pour l'agent)</button>
+  <div id="stats" style="margin-top:14px"></div>
+  <p class="mini" id="nExp"></p>
+  <div class="conteneur" style="margin-top:12px"><table id="tSyn"></table></div>
+</div>
+</main>
+
+<script>
+var BASE=[], SOURCE=[], MEMBRE=[];
+var site=document.getElementById('site');
+site.value=localStorage.getItem('ac_site')||'catalog.hifi-filter.com';
+function sauverSite(){localStorage.setItem('ac_site',site.value)}
+function norm(r){return String(r||'').toUpperCase().replace(/[\s\/\-.]/g,'')}
+
+/* ---------- IMPORT ---------- */
+function lireFichier(f,cb){
+  var fr=new FileReader();
+  fr.onload=function(e){
+    if(/\.json$/i.test(f.name)){try{cb(JSON.parse(e.target.result))}catch(err){alert('JSON invalide : '+err.message)}}
+    else{cb(XLSX.read(e.target.result,{type:'array'}))}
+  };
+  if(/\.json$/i.test(f.name))fr.readAsText(f);else fr.readAsArrayBuffer(f);
+}
+function ajoutBase(x){
+  if(!x||!x.ref)return;
+  var cle=norm(x.ref);MEMBRE[cle]=x;
+  BASE=BASE.filter(function(b){return norm(b.ref)!==cle});
+  BASE.push({ref:String(x.ref).trim(),marque:x.marque||'',hifi:x.hifi||'',type:x.type||'',remplace:x.remplace||'',statut:x.statut||'Correspondance',source:x.source||''});
+}
+document.getElementById('fBase').addEventListener('change',function(ev){
+  var fichiers=Array.from(ev.target.files),restant=fichiers.length;
+  fichiers.forEach(function(f){
+    lireFichier(f,function(d){
+      if(Array.isArray(d)){d.forEach(ajoutBase)}
+      else{d.SheetNames.forEach(function(sn){
+        XLSX.utils.sheet_to_json(d.Sheets[sn],{defval:''}).forEach(function(l){
+          var ks=Object.keys(l);if(!ks.length)return;
+          var ref=l[ks[0]];if(ref===undefined||ref==='')return;
+          ajoutBase({ref:ref,marque:l['Marque(s)']||'',hifi:l['Reference Hifi']||l['Reference correspondante']||'',type:l['Type de filtre']||'',remplace:l['Remplace']||'',statut:l['Statut']||'Correspondance',source:sn});
+        });
+      });}
+      if(--restant===0){dessinerBase();majStats();alert('Base chargee : '+BASE.length+' entrees.')}
+    });
+  });
+  ev.target.value='';
+});
+document.getElementById('fSrc').addEventListener('change',function(ev){
+  var f=ev.target.files[0];if(!f)return;
+  lireFichier(f,function(d){
+    SOURCE=[];
+    d.SheetNames.forEach(function(sn){
+      XLSX.utils.sheet_to_json(d.Sheets[sn],{defval:''}).forEach(function(l){
+        var ks=Object.keys(l);if(!ks.length)return;
+        var ref=String(l[ks[0]]).trim();if(!ref||/^r[eé]f/i.test(ref))return;
+        var q=ks.length>1?l[ks[1]]:'';
+        SOURCE.push({ref:ref,qte:(q!==''&&!isNaN(parseFloat(q))?parseFloat(q):'')});
+      });
+    });
+    dessinerSrc();majStats();alert('Fichier importe : '+SOURCE.length+' references.');
+  });
+  ev.target.value='';
+});
+['dzBase','dzSrc'].forEach(function(id){
+  var dz=document.getElementById(id);
+  dz.addEventListener('dragover',function(e){e.preventDefault();dz.classList.add('survol')});
+  dz.addEventListener('dragleave',function(){dz.classList.remove('survol')});
+  dz.addEventListener('drop',function(e){
+    e.preventDefault();dz.classList.remove('survol');
+    var inp=document.getElementById(id==='dzBase'?'fBase':'fSrc');
+    inp.files=e.dataTransfer.files;inp.dispatchEvent(new Event('change'));
+  });
+});
+
+/* ---------- RENDU ---------- */
+function badge(s){
+  if(/Correspondance/i.test(s))return '<span class="badge b-ok">Correspondance</span>';
+  if(/HIFI/i.test(s))return '<span class="badge b-hifi">D&eacute;j&agrave; r&eacute;f.</span>';
+  if(/Non trouv/i.test(s))return '<span class="badge b-no">Non trouv&eacute;</span>';
+  return '<span class="badge b-vide">'+s+'</span>';
+}
+function dessinerBase(){
+  var q=document.getElementById('rechBase').value.toLowerCase();
+  var t='<tr><th>R&eacute;f. origine</th><th>Marque(s)</th><th>R&eacute;f. correspondante</th><th>Type</th><th>Remplace</th><th>Statut</th></tr>';
+  BASE.filter(function(b){return !q||JSON.stringify(b).toLowerCase().indexOf(q)>=0}).forEach(function(b){
+    t+='<tr><td><b>'+b.ref+'</b></td><td>'+b.marque+'</td><td><b style="color:#E40520">'+b.hifi+'</b></td><td>'+b.type+'</td><td>'+b.remplace+'</td><td>'+badge(b.statut)+'</td></tr>';
+  });
+  document.getElementById('tBase').innerHTML=t;
+  document.getElementById('nBase').textContent=BASE.length+' entrees.';
+}
+function dessinerSrc(){
+  var q=document.getElementById('rechSrc').value.toLowerCase();
+  var t='<tr><th>R&eacute;f&eacute;rence entrante</th><th>Quantit&eacute;</th><th>Correspondance</th></tr>';
+  SOURCE.filter(function(s){return !q||s.ref.toLowerCase().indexOf(q)>=0}).forEach(function(s){
+    var b=MEMBRE[norm(s.ref)];
+    t+='<tr><td><b>'+s.ref+'</b></td><td>'+s.qte+'</td><td>'+(b?'<b style="color:#E40520">'+b.hifi+'</b>':'<span class="badge b-vide">A traiter</span>')+'</td></tr>';
+  });
+  document.getElementById('tSrc').innerHTML=t;
+  document.getElementById('nSrc').textContent=SOURCE.length+' references importees.';
+}
+function synthese(){
+  var S=[];
+  if(SOURCE.length){SOURCE.forEach(function(s){
+    var b=MEMBRE[norm(s.ref)];
+    S.push({ref:s.ref,qte:s.qte,hifi:b?b.hifi:'',type:b?b.type:'',marque:b?b.marque:'',statut:b?b.statut:'A traiter'});
+  });}
+  else{BASE.forEach(function(b){S.push({ref:b.ref,qte:'',hifi:b.hifi,type:b.type,marque:b.marque,statut:b.statut})});}
+  return S;
+}
+function dessinerSyn(){
+  var t='<tr><th>R&eacute;f&eacute;rence entrante</th><th>Quantit&eacute;</th><th>R&eacute;f&eacute;rence correspondante</th><th>Type</th><th>Statut</th></tr>';
+  synthese().forEach(function(s){
+    t+='<tr><td><b>'+s.ref+'</b></td><td>'+s.qte+'</td><td><b style="color:#E40520">'+(s.hifi||'')+'</b></td><td>'+s.type+'</td><td>'+badge(s.statut)+'</td></tr>';
+  });
+  document.getElementById('tSyn').innerHTML=t;
+}
+function majStats(){
+  var S=synthese(),trouve=S.filter(function(s){return s.hifi}).length,reste=S.filter(function(s){return s.statut==='A traiter'}).length;
+  document.getElementById('stats').innerHTML=
+    '<div class="stat"><b>'+(SOURCE.length||BASE.length)+'</b><span>R&eacute;f&eacute;rences</span></div>'+
+    '<div class="stat"><b>'+trouve+'</b><span>Correspondances</span></div>'+
+    '<div class="stat"><b>'+reste+'</b><span>&Agrave; traiter</span></div>';
+  dessinerSyn();
+}
+
+/* ---------- EXPORT ---------- */
+function exporter(trouveesSeules){
+  var S=synthese();
+  if(trouveesSeules)S=S.filter(function(s){return s.hifi});
+  var lignes=S.map(function(s){return{'Reference entrante':s.ref,'Reference correspondante':s.hifi,'Statut':s.statut,'Type':s.type,'Quantite':s.qte}});
+  if(!lignes.length){alert('Aucune ligne a exporter.');return}
+  var wb=XLSX.utils.book_new();
+  var ws=XLSX.utils.json_to_sheet(lignes);
+  ws['!cols']=[{wch:20},{wch:20},{wch:18},{wch:20},{wch:10}];
+  XLSX.utils.book_append_sheet(wb,ws,'Correspondances');
+  XLSX.writeFile(wb,'Correspondances_'+(site.value.replace(/[^\w.]/g,'_'))+'.xlsx');
+  document.getElementById('nExp').textContent=lignes.length+' lignes exportees.';
+}
+function exporterRestantes(){
+  var S=synthese().filter(function(s){return s.statut==='A traiter'});
+  if(!S.length){alert('Toutes les lignes sont traitees.');return}
+  var wb=XLSX.utils.book_new();
+  var ws=XLSX.utils.json_to_sheet(S.map(function(s){return{'Reference entrante':s.ref,'Quantite':s.qte}}));
+  ws['!cols']=[{wch:20},{wch:10}];
+  XLSX.utils.book_append_sheet(wb,ws,'A traiter');
+  XLSX.writeFile(wb,'References_A_Traiter.xlsx');
+  alert(S.length+' references restantes exportees : envoyez ce fichier a l agent avec le site a rechercher.');
+}
+dessinerBase();dessinerSrc();majStats();
+</script>
+</body>
+</html>
